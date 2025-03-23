@@ -1,0 +1,38 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+server-monitor
+
+# Build and dependency stuff
+/build/
+vendor/
+bin/
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker
+*.tar
+docker-compose.override.yml
+
+# Ignore environment files (secrets!)
+.env
+.env.*
+
+# Ignore local override configs
+config.local.*

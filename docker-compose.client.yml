@@ -1,0 +1,13 @@
+services:
+  gomonitor-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gomonitor:latest
+    container_name: monitor-client
+    restart: always
+    command: [
+      "-mode=client",
+      "-addr=<SERVER_ADDR>:3000",
+      "-id=<SERVICE_ID>"
+    ]

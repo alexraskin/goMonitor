@@ -11,7 +11,6 @@ type Discord struct {
 	Enabled    bool
 }
 
-// Send sends a message to the Discord webhook.
 func (d *Discord) Send(m string) error {
 	var username = "GoMonitor"
 

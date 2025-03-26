@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// StartClient starts the client
 func StartClient(serverAddr string, id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -26,7 +25,6 @@ func StartClient(serverAddr string, id string) error {
 	}
 }
 
-// sendHeartbeat sends a heartbeat to the server.
 func sendHeartbeat(ctx context.Context, serverAddr string, id string) error {
 	new_req, err := http.NewRequestWithContext(ctx, "POST", serverAddr+"/heartbeat?id="+id, nil)
 	if err != nil {

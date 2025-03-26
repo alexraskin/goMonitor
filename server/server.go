@@ -1,13 +1,18 @@
 package server
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/alexraskin/gomonitor/internal"
+
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -15,26 +20,59 @@ var (
 	mu         sync.Mutex
 )
 
-// webhookHandler handles incoming heartbeats from clients.
-func webhookHandler(w http.ResponseWriter, r *http.Request) {
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	type ServiceStatus struct {
+		ID       string    `json:"id"`
+		LastSeen time.Time `json:"last_seen"`
+		Age      string    `json:"age"`
+	}
+
+	now := time.Now()
+	var statuses []ServiceStatus
+
+	for id, last := range heartbeats {
+		statuses = append(statuses, ServiceStatus{
+			ID:       id,
+			LastSeen: last,
+			Age:      now.Sub(last).Round(time.Second).String(),
+		})
+	}
+
+	sort.Slice(statuses, func(i, j int) bool {
+		return statuses[i].LastSeen.After(statuses[j].LastSeen)
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(statuses)
+}
+
+func webhookHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	serviceID := r.URL.Query().Get("id")
 	if serviceID == "" {
 		http.Error(w, "missing id", http.StatusBadRequest)
 		return
 	}
 
+	now := time.Now()
+
 	mu.Lock()
-	heartbeats[serviceID] = time.Now()
+	heartbeats[serviceID] = now
 	mu.Unlock()
+
+	_, err := db.Exec("INSERT OR REPLACE INTO heartbeats (id, last_seen) VALUES (?, ?)", serviceID, now)
+	if err != nil {
+		log.Printf("Failed to update DB: %v", err)
+	}
 
 	log.Printf("Received heartbeat from: %s", serviceID)
 	w.WriteHeader(http.StatusOK)
 
 }
 
-// monitorLoop checks for missed heartbeats and sends notifications via PushOver and Discord.
-// Also removes stale entries that haven't checked in for too long.
-func monitorLoop(timeout time.Duration, po internal.PushOver, discord internal.Discord) {
+func monitorLoop(timeout time.Duration, po internal.PushOver, discord internal.Discord, db *sql.DB) {
 	ticker := time.NewTicker(1 * time.Minute)
 	const maxAge = 24 * time.Hour
 
@@ -66,6 +104,10 @@ func monitorLoop(timeout time.Duration, po internal.PushOver, discord internal.D
 
 			if age > maxAge {
 				log.Printf("Removing stale entry for %s (last seen %s ago)", id, age.Round(time.Second))
+				_, err := db.Exec("DELETE FROM heartbeats WHERE id = ?", id)
+				if err != nil {
+					log.Printf("Failed to delete from DB: %v", err)
+				}
 				delete(heartbeats, id)
 			}
 		}
@@ -74,11 +116,15 @@ func monitorLoop(timeout time.Duration, po internal.PushOver, discord internal.D
 	}
 }
 
-// StartServer starts the server and listens for heartbeats.
 func StartServer(po internal.PushOver, discord internal.Discord, port string) {
-	http.HandleFunc("/heartbeat", webhookHandler)
-	go monitorLoop(16*time.Minute, po, discord)
+	db := internal.InitDB("/root/data/heartbeat.db")
+	defer db.Close()
+	http.HandleFunc("/status", statusHandler)
+	http.HandleFunc("/heartbeat", func(w http.ResponseWriter, r *http.Request) {
+		webhookHandler(w, r, db)
+	})
+	go monitorLoop(16*time.Minute, po, discord, db)
 
-	log.Println("🌐 Server listening on :" + port)
+	log.Println("Server listening on :" + port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

@@ -1,4 +1,4 @@
-FROM golang:1.24.1-alpine as builder
+FROM golang:1.24.1-alpine AS builder
 
 WORKDIR /app
 
@@ -20,5 +20,4 @@ COPY --from=builder /app/monitor .
 
 EXPOSE 3000
 
-ENTRYPOINT ["./monitor"]
-CMD ["-mode=server", "-pushover", "-discord"]
+CMD ["./monitor"]

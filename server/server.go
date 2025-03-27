@@ -126,5 +126,9 @@ func StartServer(po internal.PushOver, discord internal.Discord, port string) {
 	go monitorLoop(16*time.Minute, po, discord, db)
 
 	log.Println("Server listening on :" + port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
